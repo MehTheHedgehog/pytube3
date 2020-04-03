@@ -4,7 +4,7 @@
 import logging
 from functools import lru_cache
 from http.client import HTTPResponse
-from typing import Iterable, Dict, Optional
+from typing import Dict, Optional, Callable, BinaryIO
 from urllib.request import Request
 from urllib.request import urlopen
 
@@ -37,14 +37,23 @@ def get(url) -> str:
 
 
 def stream(
-    url: str, chunk_size: int = 4096, range_size: int = 9437184
-) -> Iterable[bytes]:
+    url: str,
+    buffer: BinaryIO,
+    callback: Callable[[bytes, int], None] = None,
+    chunk_size: int = 4096,
+    range_size: int = 9437184,
+) -> None:
     """Read the response in chunks.
     :param str url: The URL to perform the GET request for.
     :param int chunk_size: The size in bytes of each chunk. Defaults to 4KB
     :param int range_size: The size in bytes of each range request. Defaults to 9MB
     :rtype: Iterable[bytes]
     """
+
+    if not buffer or not callback:
+        logger.debug("You must define buffer or callback to process stream")
+        return
+
     file_size: int = range_size  # fake filesize to start
     downloaded = 0
     while downloaded < file_size:
@@ -62,8 +71,9 @@ def stream(
             if not chunk:
                 break
             downloaded += len(chunk)
-            yield chunk
-    return  # pylint: disable=R1711
+            buffer.write(chunk)
+            if callback:
+                callback(chunk, file_size - downloaded)
 
 
 @lru_cache(maxsize=None)

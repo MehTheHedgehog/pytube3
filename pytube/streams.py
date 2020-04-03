@@ -228,17 +228,13 @@ class Stream:
             self.on_complete(file_path)
             return file_path
 
-        bytes_remaining = self.filesize
         logger.debug(
             "downloading (%s total bytes) file to %s", self.filesize, file_path,
         )
 
         with open(file_path, "wb") as fh:
-            for chunk in request.stream(self.url):
-                # reduce the (bytes) remainder by the length of the chunk.
-                bytes_remaining -= len(chunk)
-                # send to the on_progress callback.
-                self.on_progress(chunk, fh, bytes_remaining)
+            request.stream(self.url, fh, self.on_progress)
+
         self.on_complete(file_path)
         return file_path
 
@@ -264,19 +260,14 @@ class Stream:
 
         :rtype: io.BytesIO buffer
         """
-        bytes_remaining = self.filesize
         logger.info(
             "downloading (%s total bytes) file to buffer", self.filesize,
         )
 
-        for chunk in request.stream(self.url):
-            # reduce the (bytes) remainder by the length of the chunk.
-            bytes_remaining -= len(chunk)
-            # send to the on_progress callback.
-            self.on_progress(chunk, buffer, bytes_remaining)
+        request.stream(self.url, buffer, self.on_progress)
         self.on_complete(None)
 
-    def on_progress(self, chunk: bytes, file_handler: BinaryIO, bytes_remaining: int):
+    def on_progress(self, chunk: bytes, bytes_remaining: int):
         """On progress callback function.
 
         This function writes the binary data to the file, then checks if an
@@ -296,7 +287,6 @@ class Stream:
         :rtype: None
 
         """
-        file_handler.write(chunk)
         logger.debug("download remaining: %s", bytes_remaining)
         if self._monostate.on_progress:
             self._monostate.on_progress(self, chunk, bytes_remaining)
